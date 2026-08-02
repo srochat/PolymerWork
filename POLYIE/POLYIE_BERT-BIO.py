@@ -52,34 +52,7 @@ print(timestamp)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# ----------------- DATA LOADING -----------------
-#def load_json(file):
-#    with open(file, 'r') as f:
-#        data = f.read()
-#    objects = data.split('\n')
-#    json_objects = []
-#    for obj in objects:
-#        if obj:
-#            json_objects.append(json.loads(obj))
-#    return json_objects
 
-
-#def transform_to_dataset_dict(data):
-#    return {
-#        "tokens": [obj["words"] for obj in data],
-#        "ner_tags": [obj["ner"] for obj in data]
-#    }
-
-
-#train_data = load_json('../Data/PolymerAbstracts/train.json')
-#test_data = load_json('../Data/PolymerAbstracts/test.json')
-#val_data = load_json('../Data/PolymerAbstracts/dev.json')
-
-#dataset_dict = datasets.DatasetDict({
-#    "train": datasets.Dataset.from_dict(transform_to_dataset_dict(train_data)),
-#    "test": datasets.Dataset.from_dict(transform_to_dataset_dict(test_data)),
-#    "val": datasets.Dataset.from_dict(transform_to_dataset_dict(val_data))
-#})
 
 def read_dataset(dataset_path):
     with open(dataset_path, 'r') as dataset_file:
@@ -117,19 +90,6 @@ test_json = merge_es_to_o(read_dataset('../../Data/Cleaned_data/Final_v2/test_sp
 #train_json = read_dataset('../../Data/Cleaned_data/Final_v2/train_split.txt')
 #test_json = read_dataset('../../Data/Cleaned_data/Final_v2/test_split.txt')
 
-#def transform_to_dataset_dict(data):
-#    dataset = {
-#        "tokens": [],
-#        "ner_tags": []
-#    }
-#    text = data['text']
-#    labels = data['label']
-#    for i,section in enumerate(text):
-#        for j in range(len(section)):
-#            dataset['tokens'].append(section[j])
-#            dataset['ner_tags'].append(labels[i][j])
-#    return dataset
-
 def transform_to_dataset_dict(data):
     tokens = []
     ner_tags = []
@@ -138,13 +98,6 @@ def transform_to_dataset_dict(data):
         for j in range(len(data["text"][i])):
             tokens.append(data["text"][i][j])
             ner_tags.append(data["label"][i][j])
-
-    #for i in range(len(data["text"])):
-    #    flat_tokens = [tok for sent in data["text"][i] for tok in sent]
-    #    flat_labels = [lab for sent in data["label"][i] for lab in sent]
-
-    #    tokens.append(flat_tokens)
-    #    ner_tags.append(flat_labels)
 
     return {
         "tokens": tokens,
@@ -158,48 +111,6 @@ dataset_dict = datasets.DatasetDict({
 })
 
 # ----------------- LABEL MAPPING -----------------
-#ner_tag_mapping = {
-#    0: 'MATERIAL', 1: 'CONDITION', 2: 'PROPERTY NAME', 3: 'PROPERTY VALUE',
-#    4: 'O'
-#}
-#ner_tag_mapping_flipped = {v: k for k, v in ner_tag_mapping.items()}
-
-
-#def convert_to_bio(tags):
-#    bio_tags = []
-#    prev_tag = "O"
-
-#    for tag in tags:
-#        if tag == "O":
-#            bio_tags.append("O")
-#            prev_tag = "O"
-#        else:
-#            if tag != prev_tag:
-#                bio_tags.append(f"B-{tag}")
-#            else:
-#                bio_tags.append(f"I-{tag}")
-#            prev_tag = tag
-
-#    return bio_tags
-
-
-#def map_labels_to_tags(example):
-#    raw_tags = [ner_tag_mapping_flipped[t] for t in example['ner_tags']]
-#    example['tags'] = convert_to_bio(raw_tags)
-#    return example
-
-
-# build label set
-#unique_labels = set()
-#for split in ["train", "val", "test"]:
-#    for tags in dataset_dict[split]["ner_tags"]:
-#        raw = [ner_tag_mapping_flipped[t] for t in tags]
-#        bio = convert_to_bio(raw)
-#        unique_labels.update(bio)
-
-#labels = set()
-#for label in dataset_dict['train']['ner_tags']:
-#    labels.update(label)
 
 labels = set()
 
@@ -212,17 +123,7 @@ for split in ["train", "val", "test"]:
 
 print(type(dataset_dict['train']['ner_tags'][0]))
 print(dataset_dict['train']['ner_tags'][0][:5])
-#ner_tag_mapping = {i: label for i, label in enumerate(labels)}
-#ner_tag_mapping_flipped = dict(map(reversed, ner_tag_mapping.items()))
 
-# map all labels to their real tags
-#def map_labels_to_tags(example):
-#    example['tags'] = [ner_tag_mapping_flipped[tag] for tag in example['ner_tags']]
-#    return example
-
-#label_list = sorted(list(unique_labels))
-#label2id = {l: i for i, l in enumerate(label_list)}
-#id2label = {i: l for l, i in label2id.items()}
 label_list = sorted(labels)
 label2id = {l: i for i, l in enumerate(label_list)}
 id2label = {i: l for l, i in label2id.items()}
@@ -268,10 +169,6 @@ def tokenize_and_align_labels(examples):
     return tokenized
 
 
-#tokenized_dataset = dataset_dict.map(map_labels_to_tags).map(
-#    tokenize_and_align_labels,
-#    batched=True
-#)
 tokenized_dataset = dataset_dict.map(
     tokenize_and_align_labels,
     batched=True
@@ -382,7 +279,6 @@ for epoch in range(num_epochs):
         total_loss += loss.item()
         train_bar.set_postfix(loss=loss.item())
 
-    #print(f"Epoch {epoch+1} Loss: {total_loss:.4f}")
     print(f"Epoch {epoch+1}/{num_epochs} | Loss: {total_loss:.4f}")
 
 
@@ -488,8 +384,6 @@ def plot_and_save_confusion_matrices(y_true, y_pred, label_mapping, prefix="test
     df_true = pd.DataFrame(cm_true_norm, index=label_names, columns=label_names)
     df_pred = pd.DataFrame(cm_pred_norm, index=label_names, columns=label_names)
 
-    #df_true.to_csv(f"{prefix}_confusion_matrix_true_normalized.csv")
-    #df_pred.to_csv(f"{prefix}_confusion_matrix_pred_normalized.csv")
     df_true.to_csv(f"{prefix}_{timestamp}_confusion_matrix_true_normalized.csv")
     df_pred.to_csv(f"{prefix}_{timestamp}_confusion_matrix_pred_normalized.csv")
 

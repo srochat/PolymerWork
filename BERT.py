@@ -69,7 +69,7 @@ id_to_label = {i: label for label, i in label_to_id.items()}
 
 # Convert numeric tags to labels
 def map_labels_to_tags(example):
-    #print(example['ner_tags'])  # <--- Add this for debugging
+    #print(example['ner_tags'])  
     #example['tags'] = [ner_tag_mapping[tag] for tag in example['ner_tags']]
     example['tags'] = [label_to_id[tag] for tag in example['ner_tags']]
     return example
@@ -100,7 +100,6 @@ def tokenize_and_align_labels(examples):
     return tokenized
 
 # Tokenization
-#bert_pretrained = "m3rg-iitd/matscibert"
 bert_pretrained = "bert-base-uncased"
 
 tokenizer = AutoTokenizer.from_pretrained(bert_pretrained)

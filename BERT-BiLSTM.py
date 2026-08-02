@@ -65,7 +65,6 @@ def map_labels_to_tags(example):
     return example
 
 # --- Tokenization ---
-#tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
 tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", use_auth_token=token)
 label_all_tokens = False
 

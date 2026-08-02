@@ -1,14 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
-#!/usr/bin/env python
-# coding: utf-8
-
-
-# In[2]:
 
 
 # ================= DEBUG CONFIG =================
@@ -24,10 +13,6 @@ class DebugConfig:
 if DebugConfig.ENABLED:
     print("Running quick sanity check (NOT full training)")
 # ===============================================
-
-
-# In[3]:
-
 
 # --- Imports and Initial Setup ---
 import os
@@ -47,7 +32,6 @@ from transformers import (
     AutoTokenizer, AutoModel, AutoConfig, AutoModelForTokenClassification,
     get_scheduler
 )
-token = "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"  # your Hugging Face token
 
 from transformers.modeling_outputs import TokenClassifierOutput
 from torch.optim import AdamW
@@ -63,11 +47,6 @@ if first_run:
     os.system('pip install datasets evaluate')
 
 
-
-
-# In[4]:
-
-
 # ----------------- GPU CHECK -----------------
 print("CUDA available:", torch.cuda.is_available())
 print("Default device:", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
@@ -75,9 +54,6 @@ if torch.cuda.is_available():
     print("Current GPU index:", torch.cuda.current_device())
     print("GPU name:", torch.cuda.get_device_name(torch.cuda.current_device()))
 # ---------------------------------------------
-
-
-# In[5]:
 
 
 def load_json(file):
@@ -105,9 +81,6 @@ dataset_dict = datasets.DatasetDict({
 })
 
 
-# In[6]:
-
-
 def clean_material(x):
     if x is None:
         return []
@@ -122,9 +95,6 @@ def clean_material(x):
         return [p for p in parts if p]
 
     return x
-
-
-# In[7]:
 
 
 # --- Label Mapping ---
@@ -144,14 +114,8 @@ def map_labels_to_ids(example):
 dataset_dict = dataset_dict.map(map_labels_to_ids)
 
 
-# In[8]:
-
-
 print(dataset_dict["train"][0]["tags"][:20])
 print(type(dataset_dict["train"][0]["tags"][0]))
-
-
-# In[9]:
 
 
 # --- Tokenization ---
@@ -201,38 +165,6 @@ tokenized_dataset = dataset_dict.map(
 )
 
 
-# # --- Tokenization ---
-# tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
-# label_all_tokens = False
-# 
-# def tokenize_and_align_labels(examples):
-#     tokenized_inputs = tokenizer(
-#         examples["tokens"], max_length=512, truncation=True,
-#         padding=True, is_split_into_words=True
-#     )
-#     labels = []
-#     for i, label in enumerate(examples["tags"]):
-#         word_ids = tokenized_inputs.word_ids(batch_index=i)
-#         previous_word_idx = None
-#         label_ids = []
-#         for word_idx in word_ids:
-#             if word_idx is None:
-#                 label_ids.append(-100)
-#             elif word_idx != previous_word_idx:
-#                 label_ids.append(label[word_idx])
-#             else:
-#                 label_ids.append(label[word_idx] if label_all_tokens else -100)
-#             previous_word_idx = word_idx
-#         labels.append(label_ids)
-#     tokenized_inputs["labels"] = labels
-#     return tokenized_inputs
-# 
-# tokenized_dataset = dataset_dict.map(map_labels_to_tags).map(tokenize_and_align_labels, batched=True)
-# 
-# 
-
-# In[10]:
-
 
 # --- Transition Matrix ---
 def find_transition_matrix(data):
@@ -249,10 +181,6 @@ labels = [ner_tag_mapping[i] for i in range(len(ner_tag_mapping)) if i != 3]
 sns.heatmap(matrix, annot=True, xticklabels=labels, yticklabels=labels)
 plt.show()
 
-
-
-
-# In[11]:
 
 
 # --- Label Distribution ---
@@ -278,11 +206,6 @@ datasets_split = {"Train": tokenized_dataset['train'], "Val": tokenized_dataset[
 df = get_label_counts_dataframe(datasets_split)
 print(df)
 
-
-
-# In[12]:
-
-
 # --- DataLoaders ---
 def convert_to_data_loader(dataset, batch_size=16):
     return DataLoader(
@@ -307,10 +230,6 @@ bert_data.set_format(
 train_dataloader = DataLoader(bert_data["train"], shuffle=True, batch_size=16)
 eval_dataloader = DataLoader(bert_data["val"], batch_size=16)
 test_dataloader = DataLoader(bert_data["test"], batch_size=16)
-
-
-
-# In[13]:
 
 
 # --- Model Setup ---
@@ -344,10 +263,6 @@ class MyTaskSpecificCustomModel(nn.Module):
 model = MyTaskSpecificCustomModel("allenai/scibert_scivocab_uncased", num_labels=9, hidden_size=64).to(device)
 
 
-
-# In[14]:
-
-
 # --- Optimizer and Scheduler ---
 bert_params = list(model.bert.parameters())
 other_params = list(model.dropout.parameters()) + list(model.hidden_layer.parameters()) + list(model.output_layer.parameters())
@@ -360,10 +275,6 @@ optimizer = AdamW([
 num_epochs = 20
 num_training_steps = num_epochs * len(train_dataloader)
 lr_scheduler = get_scheduler("linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps)
-
-
-
-# In[15]:
 
 
 # --- Training Loop ---
@@ -402,12 +313,6 @@ f1 = metric_f1.compute(average='macro')['f1']
 
 print(f"Epoch {epoch+1} Acc: {acc:.4f}, F1: {f1:.4f}")
 
-   # print(f"Epoch {epoch+1} Acc: {metric_acc.compute()['accuracy']:.4f}, F1: {metric_f1.compute(average='macro')['f1']:.4f}")
-
-
-
-# In[16]:
-
 
 # --- Evaluation ---
 def predict(loader):
@@ -429,15 +334,11 @@ pred, gold = predict(eval_dataloader)
 print(classification_report(gold, pred, target_names=ner_tag_mapping.values(), digits=3))
 
 
-# In[17]:
-
-
 # Final test report
 model.eval()
 pred_all, gold_all = [], []
 
 for batch in test_loader:
-    # batch = [input_ids, labels, token_type_ids, attention_mask]
     input_ids, labels, token_type_ids, attention_mask = [b.to(device) for b in batch]
     with torch.no_grad():
         outputs = model(
@@ -462,9 +363,6 @@ print(classification_report(
     target_names=list(ner_tag_mapping.values()),
     digits=3
 ))
-
-
-# In[18]:
 
 
 def predictions_to_spans(pred_sequences, tokens_list):
@@ -511,9 +409,6 @@ def predictions_to_spans(pred_sequences, tokens_list):
     return docs
 
 
-# In[19]:
-
-
 def build_docs_dict(docs):
     docs_dict = {}
 
@@ -537,13 +432,7 @@ def build_docs_dict(docs):
     return docs_dict
 
 
-# In[20]:
-
-
 print(tokenized_dataset["train"].column_names)
-
-
-# In[21]:
 
 
 def subtoken_to_word_predictions(pred_seq, word_ids):
@@ -564,9 +453,6 @@ def subtoken_to_word_predictions(pred_seq, word_ids):
             seen_words.add(word_id)
 
     return word_predictions
-
-
-# In[22]:
 
 
 # Get predictions aligned per sequence
@@ -606,15 +492,12 @@ for batch in eval_dataloader:
         pred_sequences.append(word_preds)
         gold_sequences.append(word_gold)
 
-# Convert predictions → spans
+# Convert predictions to spans
 tokens_list = dataset_dict["val"]["tokens"]
 docs = predictions_to_spans(pred_sequences, tokens_list)
 
 # Build docs_dict
 docs_dict = build_docs_dict(docs)
-
-
-# In[23]:
 
 
 def sentence_token_spans(tokens):
@@ -635,9 +518,6 @@ def sentence_token_spans(tokens):
     return spans
 
 
-# In[24]:
-
-
 def is_valid_entity(span, tokens):
 
     start, end = span[1], span[2]
@@ -654,7 +534,7 @@ def is_valid_entity(span, tokens):
     if len(text) == 0:
         return False
 
-    # obvious junk only
+    # junk only
     bad_exact = {
         "{", "}", ".", ",", "-", "(", ")", "/", "=",
         "was",
@@ -667,7 +547,7 @@ def is_valid_entity(span, tokens):
     if text.lower() in bad_exact:
         return False
 
-    # reject pure punctuation
+    # reject punctuation
     if not any(c.isalnum() for c in text):
         return False
 
@@ -676,10 +556,6 @@ def is_valid_entity(span, tokens):
         return False
 
     return True
-
-
-# In[25]:
-
 
 def safe_text(tokens, span):
 
@@ -693,11 +569,11 @@ def safe_text(tokens, span):
 
     text = " ".join(tokens[start:end+1]).strip()
 
-    # remove tiny junk
+    # remove junk
     if len(text) < 2:
         return None
 
-    # remove punctuation garbage
+    # remove punctuation
     bad_texts = {
         "", ".", ",", ";", ":", "(", ")",
         "{", "}", "[", "]",
@@ -719,10 +595,6 @@ def safe_text(tokens, span):
         return None
 
     return text
-
-
-# In[26]:
-
 
 def clean_entities(entities, tokens):
 
@@ -746,10 +618,6 @@ def clean_entities(entities, tokens):
         cleaned.append(ent)
 
     return cleaned
-
-
-# In[27]:
-
 
 def link_prop_name_value(doc):
     relations = []
@@ -775,10 +643,6 @@ def link_prop_name_value(doc):
             })
 
     return relations
-
-
-# In[28]:
-
 
 def link_entities(doc, tokens):
 
@@ -846,9 +710,6 @@ def link_entities(doc, tokens):
     return relations
 
 
-# In[29]:
-
-
 def extract_relations_simple(docs_dict):
 
     relations_output = {}
@@ -865,10 +726,6 @@ def extract_relations_simple(docs_dict):
         }
 
     return relations_output
-
-
-# In[30]:
-
 
 def create_table(docs_dict, relations_output, tokens_list):
     table = []
@@ -912,9 +769,6 @@ def create_table(docs_dict, relations_output, tokens_list):
     )
 
 
-# In[31]:
-
-
 relations_output = extract_relations_simple(docs_dict)
 
 df_table = create_table(docs_dict, relations_output, tokens_list)
@@ -943,13 +797,7 @@ df_table["Material"] = df_table["Material"].apply(clean_material)
 print(df_table.head())
 
 
-# In[32]:
-
-
 df_table
-
-
-# In[33]:
 
 
 df_table.to_csv("relation_table.csv", index=False)

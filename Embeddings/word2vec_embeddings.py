@@ -158,10 +158,10 @@ tag_order = [
 ]
 
 
-# Step 1: Extract tokens and tags
+# Extract tokens and tags
 tsne_ids, tsne_tokens, tsne_tags = get_tokens_and_tags(pre_dev_dataset)
 
-# Step 2: Filter out padding (-1) and "O" tokens
+# Filter out padding (-1) and "O" tokens
 filtered_tokens = []
 filtered_tags = []
 
@@ -170,20 +170,20 @@ for token, tag in zip(tsne_tokens, tsne_tags):
         filtered_tokens.append(token)
         filtered_tags.append(tag)
 
-# Step 3: Get Word2Vec embeddings for filtered tokens
+# Word2Vec embeddings for filtered tokens
 tsne_embeddings = np.array([word2vec_model.wv[token] for token in filtered_tokens])
 
-# Step 4: Run t-SNE
+# t-SNE
 tsne = TSNE(n_components=2, perplexity=30, random_state=42)
 tsne_embeddings_2d = tsne.fit_transform(tsne_embeddings)
 
-# Step 5: Map numeric tags to string labels
+# Map tags to string labels
 tag_names = [ner_tag_mapping[tag] for tag in filtered_tags]
 
-# Step 6: Create color array for all points
+# color array
 colors = np.array([NER_COLOR_MAP[tag] for tag in tag_names])
 
-# Step 7: Plot all points in a single scatter
+# Plot
 plt.figure(figsize=(12,10))
 sc = plt.scatter(
     tsne_embeddings_2d[:,0],
@@ -194,7 +194,7 @@ sc = plt.scatter(
     edgecolor='none'
 )
 
-# Step 8: Create legend manually
+# legend
 from matplotlib.lines import Line2D
 legend_elements = [Line2D([0], [0], marker='o', color='w',
                           markerfacecolor=NER_COLOR_MAP[tag], markersize=10, label=tag)
@@ -208,7 +208,7 @@ plt.tick_params(axis='both', labelsize=18)
 plt.grid(True)
 plt.tight_layout()
 
-# Step 9: Save figure to file
+# save
 plt.savefig("cleaned_word2vec_embeddings_all_points.png", dpi=300, bbox_inches='tight', pad_inches=0.1)
 
 

@@ -2,12 +2,12 @@
 # coding: utf-8
 
 first_run = True
-USE_CRF = False  # 🔁 toggle here
+USE_CRF = False  #  toggle here
 
 # ================= DEBUG CONFIG =================
 class DebugConfig:
-    ENABLED = False          # 🔁 toggle ON/OFF here
-    TRAIN_SAMPLES = 20      # small dataset size
+    ENABLED = False          #  toggle ON/OFF here
+    TRAIN_SAMPLES = 20      # smaller dataset size
     VAL_SAMPLES = 10
     TEST_SAMPLES = 10
     BATCH_SIZE = 2
@@ -97,11 +97,7 @@ ner_tag_mapping = {
 }
 ner_tag_mapping_flipped = dict(map(reversed, ner_tag_mapping.items()))
 
-"""
-def map_labels_to_tags(example):
-    example['tags'] = [ner_tag_mapping_flipped[tag] for tag in example['ner_tags']]
-    return example
-"""
+
 def convert_to_bio(tags):
     bio_tags = []
     prev_tag = "O"
@@ -300,7 +296,7 @@ class MyTaskSpecificCustomModel(nn.Module):
                 predictions = self.crf.decode(logits, mask=mask)
 
         else:
-            # 🔥 standard token classification
+            # standard token classification
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
 
             if labels is not None:
@@ -311,33 +307,18 @@ class MyTaskSpecificCustomModel(nn.Module):
 
 
         
-        """
-        loss = None
-        crf_pred = None
-        #mask = attention_mask.bool()
-
-        if labels is not None:  # training → compute loss
-            mask = attention_mask == 1
-            labels_fixed = labels.clone()
-            labels_fixed[labels_fixed == -100] = 0
-            loss = -self.crf(logits, labels_fixed, mask=mask, reduction='mean')
-            crf_pred = None # None during training
-        else: # evaluation → decode
-            mask = attention_mask == 1
-            crf_pred = self.crf.decode(logits, mask=mask)
-"""
+      
         return TokenClassifierOutput(
             loss=loss,
             logits=logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions
-        #), torch.tensor(crf_pred, device=logits.device)
-        ), predictions # replaced the line above on 26 March
+        ), predictions 
 
 #model = MyTaskSpecificCustomModel(checkpoint="bert-base-uncased", num_labels=9, hidden_size=64, freeze_bert=False)
 model = MyTaskSpecificCustomModel(
     checkpoint="bert-base-uncased",
-    num_labels=len(label_list),   # 🔥 change here
+    num_labels=len(label_list),   
     hidden_size=64,
     freeze_bert=False,
     use_crf=USE_CRF
@@ -458,18 +439,6 @@ for epoch in range(num_epochs):
                         filtered_predictions.append(p)
                         filtered_references.append(g)
 
-
-
-
-
-
-            
-            #for seq_pred, seq_gold, mask_seq in zip(crf_pred, golds, masks):
-             #   for p, g, m in zip(seq_pred, seq_gold, mask_seq):
-              #      if m == 1 and g != -100:
-               #         filtered_predictions.append(p)
-                #        filtered_references.append(g)
-
             if filtered_predictions:
                 metric_acc.add_batch(predictions=filtered_predictions, references=filtered_references)
                 metric_f1.add_batch(predictions=filtered_predictions, references=filtered_references)
@@ -492,45 +461,7 @@ progress_bar.close()
 
 
 # ----- HELPER FUNCTIONS FOR TEST -----
-"""
-def collect_predictions(dataloader):
-    model.eval()
-    y_true, y_pred = [], []
 
-    for batch in dataloader:
-        if isinstance(batch, dict):
-            batch_device = {k: v.to(device) for k, v in batch.items()}
-        else:
-            batch_device = {
-                "input_ids": batch[0].to(device),
-                "labels": batch[1].to(device),
-                "token_type_ids": batch[2].to(device),
-                "attention_mask": batch[3].to(device)
-            }
-
-        with torch.no_grad():
-            batch_input = {k: v for k, v in batch_device.items() if k != "labels"}
-            _, preds = model(**batch_input)
-
-        if crf_pred is None:
-            continue
-
-        golds = batch_device["labels"].cpu().tolist()
-        masks = batch_device["attention_mask"].cpu().tolist()
-        
-        for seq_pred, seq_gold, mask_seq in zip(crf_pred, golds, masks):
-            valid_positions = [i for i, m in enumerate(mask_seq) if m == 1]
-
-            for pred_idx, pos in enumerate(valid_positions):
-                g = seq_gold[pos]
-                p = seq_pred[pred_idx]
-
-                if g != -100:
-                    y_true.append(g)
-                    y_pred.append(p)
-
-    return y_true, y_pred
-"""
 
 def collect_predictions_seqeval(dataloader):
     model.eval()
@@ -577,25 +508,7 @@ def collect_predictions_seqeval(dataloader):
 
     return y_true, y_pred
 
-"""
-def print_report(dataloader, name):
-    y_true_test, y_pred_test = collect_predictions_seqeval(test_dataloader)
 
-    if len(y_true) == 0:
-        print(f"\n===== {name} SET CLASSIFICATION REPORT =====")
-        print("No valid predictions available.")
-        return
-
-    labels = list(range(len(ner_tag_mapping)))
-    print(f"\n===== {name} SET CLASSIFICATION REPORT =====")
-    print(classification_report(
-        y_true, y_pred,
-        labels=labels,
-        target_names=[ner_tag_mapping[i] for i in labels],
-        digits=3,
-        zero_division=0
-    ))
-"""
 
 def collect_predictions_flat(dataloader):
     model.eval()

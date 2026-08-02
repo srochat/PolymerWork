@@ -5,8 +5,8 @@ first_run = True
 
 # ================= DEBUG CONFIG =================
 class DebugConfig:
-    ENABLED = False          # 🔁 toggle ON/OFF here
-    TRAIN_SAMPLES = 20      # small dataset size
+    ENABLED = False          # toggle ON/OFF here
+    TRAIN_SAMPLES = 20      # smaller dataset size
     VAL_SAMPLES = 10
     TEST_SAMPLES = 10
     BATCH_SIZE = 2

@@ -1,15 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
 
 first_run = True
-USE_CRF = False  # 🔁 toggle here
+USE_CRF = False  #  toggle here
 
 MAX_LEN = 512
 
 # ================= DEBUG CONFIG =================
 class DebugConfig:
-    ENABLED = False          # 🔁 toggle ON/OFF here
-    TRAIN_SAMPLES = 20      # small dataset size
+    ENABLED = False          #  toggle ON/OFF here
+    TRAIN_SAMPLES = 20      # smaller dataset size
     VAL_SAMPLES = 10
     TEST_SAMPLES = 10
     BATCH_SIZE = 2
@@ -75,7 +73,7 @@ def merge_es_to_o(data):
                 if tag == "ES" or tag.endswith("-ES"):
                     data["label"][i][j] = "O"
 
-            # Case 2: tag is a list (your case)
+            # Case 2: tag is a list
             elif isinstance(tag, list):
                 new_tag = []
                 for t in tag:
@@ -222,13 +220,11 @@ def convert_to_data_loader(dataset, num_classes):
     loader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False)
     return loader
 
-#num_classes = len(ner_tag_mapping)
-
 def apply_debug_dataset(bert_data):
     if not DebugConfig.ENABLED:
         return bert_data["train"], bert_data["val"], bert_data["test"]
 
-    print("⚡ DEBUG MODE ENABLED")
+    print("DEBUG MODE ENABLED")
 
     train = bert_data["train"].select(range(DebugConfig.TRAIN_SAMPLES))
     val   = bert_data["val"].select(range(DebugConfig.VAL_SAMPLES))
@@ -291,7 +287,7 @@ class MyTaskSpecificCustomModel(nn.Module):
                 predictions = self.crf.decode(logits, mask=mask)
 
         else:
-            # 🔥 standard token classification
+            # standard token classification
             loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
 
             if labels is not None:
@@ -305,13 +301,11 @@ class MyTaskSpecificCustomModel(nn.Module):
             logits=logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions
-        #), torch.tensor(crf_pred, device=logits.device)
         ), predictions # replaced the line above on 26 March
 
-#model = MyTaskSpecificCustomModel(checkpoint="bert-base-uncased", num_labels=9, hidden_size=64, freeze_bert=False)
 model = MyTaskSpecificCustomModel(
     checkpoint="bert-base-uncased",
-    num_labels=len(label_list),   # 🔥 change here
+    num_labels=len(label_list),   
     hidden_size=64,
     freeze_bert=False,
     use_crf=USE_CRF
@@ -437,12 +431,7 @@ for epoch in range(num_epochs):
 
 
 
-            
-            #for seq_pred, seq_gold, mask_seq in zip(crf_pred, golds, masks):
-             #   for p, g, m in zip(seq_pred, seq_gold, mask_seq):
-              #      if m == 1 and g != -100:
-               #         filtered_predictions.append(p)
-                #        filtered_references.append(g)
+          
 
             if filtered_predictions:
                 metric_acc.add_batch(predictions=filtered_predictions, references=filtered_references)
@@ -466,45 +455,6 @@ progress_bar.close()
 
 
 # ----- HELPER FUNCTIONS FOR TEST -----
-"""
-def collect_predictions(dataloader):
-    model.eval()
-    y_true, y_pred = [], []
-
-    for batch in dataloader:
-        if isinstance(batch, dict):
-            batch_device = {k: v.to(device) for k, v in batch.items()}
-        else:
-            batch_device = {
-                "input_ids": batch[0].to(device),
-                "labels": batch[1].to(device),
-                "token_type_ids": batch[2].to(device),
-                "attention_mask": batch[3].to(device)
-            }
-
-        with torch.no_grad():
-            batch_input = {k: v for k, v in batch_device.items() if k != "labels"}
-            _, preds = model(**batch_input)
-
-        if crf_pred is None:
-            continue
-
-        golds = batch_device["labels"].cpu().tolist()
-        masks = batch_device["attention_mask"].cpu().tolist()
-        
-        for seq_pred, seq_gold, mask_seq in zip(crf_pred, golds, masks):
-            valid_positions = [i for i, m in enumerate(mask_seq) if m == 1]
-
-            for pred_idx, pos in enumerate(valid_positions):
-                g = seq_gold[pos]
-                p = seq_pred[pred_idx]
-
-                if g != -100:
-                    y_true.append(g)
-                    y_pred.append(p)
-
-    return y_true, y_pred
-"""
 
 def collect_predictions_seqeval(dataloader):
     model.eval()
@@ -551,25 +501,6 @@ def collect_predictions_seqeval(dataloader):
 
     return y_true, y_pred
 
-"""
-def print_report(dataloader, name):
-    y_true_test, y_pred_test = collect_predictions_seqeval(test_dataloader)
-
-    if len(y_true) == 0:
-        print(f"\n===== {name} SET CLASSIFICATION REPORT =====")
-        print("No valid predictions available.")
-        return
-
-    labels = list(range(len(ner_tag_mapping)))
-    print(f"\n===== {name} SET CLASSIFICATION REPORT =====")
-    print(classification_report(
-        y_true, y_pred,
-        labels=labels,
-        target_names=[ner_tag_mapping[i] for i in labels],
-        digits=3,
-        zero_division=0
-    ))
-"""
 
 def collect_predictions_flat(dataloader):
     model.eval()
@@ -620,8 +551,6 @@ def plot_and_save_confusion_matrices(y_true, y_pred, label_mapping, prefix="test
     df_true = pd.DataFrame(cm_true_norm, index=label_names, columns=label_names)
     df_pred = pd.DataFrame(cm_pred_norm, index=label_names, columns=label_names)
 
-    #df_true.to_csv(f"{prefix}_confusion_matrix_true_normalized.csv")
-    #df_pred.to_csv(f"{prefix}_confusion_matrix_pred_normalized.csv")
     df_true.to_csv(f"{prefix}_{timestamp}_confusion_matrix_true_normalized.csv")
     df_pred.to_csv(f"{prefix}_{timestamp}_confusion_matrix_pred_normalized.csv")
 
@@ -657,8 +586,6 @@ def print_seqeval_report(dataloader, name):
     print("Recall:", recall_score(y_true, y_pred))
 
 # ----- FINAL TEST REPORT -----
-#y_true_test, y_pred_test = collect_predictions(test_dataloader)
-#y_true_test, y_pred_test = collect_predictions_seqeval(test_dataloader)
 y_true_test, y_pred_test = collect_predictions_flat(test_dataloader)
 print_seqeval_report(test_dataloader, "TEST")
 print_seqeval_report(eval_dataloader, "VALIDATION")

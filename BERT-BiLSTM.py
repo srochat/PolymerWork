@@ -18,7 +18,6 @@ from transformers import (
     AutoTokenizer, AutoModel, AutoConfig, AutoModelForTokenClassification,
     get_scheduler
 )
-token = "HIDDEN"  # your Hugging Face token
 
 from transformers.modeling_outputs import TokenClassifierOutput
 from torch.optim import AdamW

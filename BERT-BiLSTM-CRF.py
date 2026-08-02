@@ -186,7 +186,7 @@ def apply_debug_dataset(bert_data):
     if not DebugConfig.ENABLED:
         return bert_data["train"], bert_data["val"], bert_data["test"]
 
-    print("⚡ DEBUG MODE ENABLED")
+    print("DEBUG MODE ENABLED")
 
     train = bert_data["train"].select(range(DebugConfig.TRAIN_SAMPLES))
     val   = bert_data["val"].select(range(DebugConfig.VAL_SAMPLES))
@@ -235,13 +235,13 @@ class MyTaskSpecificCustomModel(nn.Module):
         crf_pred = None
         #mask = attention_mask.bool()
 
-        if labels is not None:  # training → compute loss
+        if labels is not None:  
             mask = attention_mask == 1
             labels_fixed = labels.clone()
             labels_fixed[labels_fixed == -100] = 0
             loss = -self.crf(logits, labels_fixed, mask=mask, reduction='mean')
             crf_pred = None # None during training
-        else: # evaluation → decode
+        else: 
             mask = attention_mask == 1
             crf_pred = self.crf.decode(logits, mask=mask)
 
@@ -250,8 +250,7 @@ class MyTaskSpecificCustomModel(nn.Module):
             logits=logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions
-        #), torch.tensor(crf_pred, device=logits.device)
-        ), crf_pred # replaced the line above on 26 March
+        ), crf_pred 
 
 model = MyTaskSpecificCustomModel(checkpoint="bert-base-uncased", num_labels=9, hidden_size=64, freeze_bert=False)
 model.to(device)
@@ -357,18 +356,6 @@ for epoch in range(num_epochs):
                     if g != -100:
                         filtered_predictions.append(p)
                         filtered_references.append(g)
-
-
-
-
-
-
-            
-            #for seq_pred, seq_gold, mask_seq in zip(crf_pred, golds, masks):
-             #   for p, g, m in zip(seq_pred, seq_gold, mask_seq):
-              #      if m == 1 and g != -100:
-               #         filtered_predictions.append(p)
-                #        filtered_references.append(g)
 
             if filtered_predictions:
                 metric_acc.add_batch(predictions=filtered_predictions, references=filtered_references)

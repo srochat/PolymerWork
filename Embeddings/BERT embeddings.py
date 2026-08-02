@@ -1,5 +1,4 @@
 
-#Imports and Setup
 import json
 import torch
 from transformers import BertTokenizerFast, BertModel

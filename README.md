@@ -1,5 +1,5 @@
 # Polymer Data Extraction
-This repository contains the data, code and models used in the article titled "Named-Entity Recognition for Polymer Scientific Literature Using Hybrid Deep Learning Architectures" by B. Joseph and S. Rochat.
+This repository contains the data, code and models used in the article titled "Polymer Data Extraction Using Hybrid Deep Learning Architectures" by B. Joseph and S. Rochat.
 ## Data
 The Data folder contains the two data sets used in the investigation, namely the Polymer Abstracts from Shetty et al.(https://github.com/Ramprasad-Group/polymer_information_extraction/tree/main/data/PolymerAbstracts) and the PolyIE dataset by Cheung et al. (https://github.com/jerry3027/PolyIE).
 ## Code

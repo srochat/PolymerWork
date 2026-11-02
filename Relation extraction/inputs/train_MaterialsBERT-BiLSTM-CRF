@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""Windowed MaterialsBERT-BiLSTM-CRF NER training.
+
+No random seed is explicitly set. Validation word-level BIO span F1 selects
+best checkpoint. The test split is evaluated only after training.
+"""
+import argparse
+import json
+from pathlib import Path
+
+import torch
+from torch import nn
+from torch.utils.data import Dataset, DataLoader
+from torch.optim import AdamW
+from transformers import AutoTokenizer, AutoModel, AutoConfig, get_scheduler
+from torchcrf import CRF
+from seqeval.metrics import f1_score, precision_score, recall_score
+
+MODEL_NAME = 'pranav-s/MaterialsBERT'
+MAX_LEN = 512
+HIDDEN_SIZE = 64
+STRIDE = 64  # overlap in subword tokens
+
+
+def load_segments(path):
+    data = json.loads(Path(path).read_text(encoding='utf-8'))
+    assert all(k in data for k in ('text', 'label', 'relation')), f'Unexpected schema: {path}'
+    pairs = []
+    for doc_text, doc_labels in zip(data['text'], data['label']):
+        assert len(doc_text) == len(doc_labels)
+        for words, tags in zip(doc_text, doc_labels):
+            assert len(words) == len(tags), f'Token/label mismatch in {path}'
+            tags = [('O' if tag == 'ES' or tag.endswith('-ES') else tag) for tag in tags]
+            pairs.append((words, tags))
+    return pairs
+
+
+def continuation_label(tag):
+    return 'I-' + tag[2:] if tag.startswith('B-') else tag
+
+
+class NERDataset(Dataset):
+    def __init__(self, pairs, tokenizer, label2id, stride=STRIDE):
+        self.pairs = pairs
+        self.items = []
+        self.window_counts = []
+        self.stride = stride
+        for segment_id, (words, tags) in enumerate(pairs):
+            if not words:
+                self.window_counts.append(0)
+                continue
+            # Replace words that produce no subword tokens with [UNK]
+            # Original words and BIO labels remain unchanged
+            safe_words = [
+                word if tokenizer.tokenize(word) else tokenizer.unk_token
+                for word in words
+            ]
+
+            enc = tokenizer(
+                safe_words, is_split_into_words=True, truncation=True,
+                max_length=MAX_LEN, stride=stride, padding='max_length',
+                return_overflowing_tokens=True, return_offsets_mapping=True,
+            )
+            n_windows = len(enc['input_ids'])
+            self.window_counts.append(n_windows)
+            for window_id in range(n_windows):
+                word_ids = enc.word_ids(batch_index=window_id)
+                offsets = enc['offset_mapping'][window_id]
+                labels = []
+                first_word_positions = []
+                seen_words = set()
+                for pos, (wid, (start, end)) in enumerate(zip(word_ids, offsets)):
+                    if wid is None:
+                        # CRF mask must start at position zero and be contiguous.
+                        # Include [CLS]/[SEP] as O; padding is masked out.
+                        labels.append(label2id['O'])
+                    else:
+                        tag = tags[wid] if start == 0 else continuation_label(tags[wid])
+                        labels.append(label2id[tag])
+                        if wid not in seen_words:
+                            first_word_positions.append((pos, wid))
+                            seen_words.add(wid)
+                self.items.append({
+                    'input_ids': torch.tensor(enc['input_ids'][window_id], dtype=torch.long),
+                    'attention_mask': torch.tensor(enc['attention_mask'][window_id], dtype=torch.long),
+                    'token_type_ids': torch.tensor(
+                        enc.get('token_type_ids', [[0] * MAX_LEN] * n_windows)[window_id],
+                        dtype=torch.long),
+                    'labels': torch.tensor(labels, dtype=torch.long),
+                    'segment_id': segment_id,
+                    'window_id': window_id,
+                    'first_word_positions': first_word_positions,
+                })
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        return {k: v for k, v in self.items[index].items() if isinstance(v, torch.Tensor)}
+
+
+class MyTaskSpecificCustomModel(nn.Module):
+    def __init__(self, checkpoint, num_labels, hidden_size=64, use_crf=True):
+        super().__init__()
+        self.num_labels = num_labels
+        self.use_crf = use_crf
+        self.config = AutoConfig.from_pretrained(checkpoint, output_attentions=False,
+                                                  output_hidden_states=False)
+        self.bert = AutoModel.from_pretrained(checkpoint, config=self.config)
+        self.dropout = nn.Dropout(0.1)
+        # Internal LSTM dropout is ineffective with one layer; external dropout above is active.
+        self.hidden_layer = nn.LSTM(self.config.hidden_size, hidden_size,
+                                    bidirectional=True, batch_first=True)
+        self.output_layer = nn.Linear(hidden_size * 2, num_labels)
+        if use_crf:
+            self.crf = CRF(num_tags=num_labels, batch_first=True)
+
+    def forward(self, input_ids, token_type_ids, attention_mask, labels=None):
+        outputs = self.bert(input_ids=input_ids, token_type_ids=token_type_ids,
+                            attention_mask=attention_mask)
+        sequence_outputs = self.dropout(outputs[0])
+        lstm_output, _ = self.hidden_layer(sequence_outputs)
+        logits = self.output_layer(lstm_output)
+        mask = attention_mask.bool()
+        if self.use_crf:
+            if labels is not None:
+                # Normalise negative log likelihood by the number of active tokens.
+                return -self.crf(logits, labels, mask=mask, reduction='token_mean'), None
+            return None, self.crf.decode(logits, mask=mask)
+        if labels is not None:
+            loss = nn.CrossEntropyLoss(ignore_index=-100)(
+                logits.reshape(-1, self.num_labels), labels.reshape(-1))
+            return loss, None
+        return None, logits.argmax(-1).tolist()
+
+
+def predict_segments(model, dataset, batch_size, id2label, device):
+    """Merge overlapping windows, retaining the most central full word occurrence."""
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    candidates = [dict() for _ in dataset.pairs]
+    model.eval()
+    item_cursor = 0
+    with torch.no_grad():
+        for batch in loader:
+            inputs = {k: v.to(device) for k, v in batch.items() if k != 'labels'}
+            _, predictions = model(**inputs)
+            for seq_pred in predictions:
+                item = dataset.items[item_cursor]
+                item_cursor += 1
+                active_length = int(item['attention_mask'].sum().item())
+                for pos, word_id in item['first_word_positions']:
+                    # Pick the window where this word is furthest from either edge.
+                    centrality = min(pos, active_length - 1 - pos)
+                    previous = candidates[item['segment_id']].get(word_id)
+                    if previous is None or centrality > previous[0]:
+                        candidates[item['segment_id']][word_id] = (
+                            centrality, id2label[seq_pred[pos]])
+    predictions = []
+    for seg_id, (words, _) in enumerate(dataset.pairs):
+        missing = [i for i in range(len(words)) if i not in candidates[seg_id]]
+        if missing:
+            raise RuntimeError(
+                f'Segment {seg_id} has {len(missing)} words without predictions, '
+                f'first missing word index: {missing[0]}')
+        predictions.append([candidates[seg_id][i][1] for i in range(len(words))])
+    return predictions
+
+
+def evaluate(model, dataset, batch_size, id2label, device):
+    y_pred = predict_segments(model, dataset, batch_size, id2label, device)
+    y_true = [tags for _, tags in dataset.pairs]
+    return {
+        'precision': precision_score(y_true, y_pred),
+        'recall': recall_score(y_true, y_pred),
+        'f1': f1_score(y_true, y_pred),
+    }
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument('--data-dir', default='.')
+    p.add_argument('--output-dir', default='checkpoints_windowed')
+    p.add_argument('--epochs', type=int, default=20)
+    p.add_argument('--batch-size', type=int, default=16)
+    p.add_argument('--stride', type=int, default=STRIDE)
+    p.add_argument('--debug', action='store_true')
+    args = p.parse_args()
+    if not 0 <= args.stride < MAX_LEN - 2:
+        p.error('stride must be between 0 and 509')
+    out = Path(args.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    train = load_segments(Path(args.data_dir) / 'train_split.txt')
+    val = load_segments(Path(args.data_dir) / 'validation_split.txt')
+    test = load_segments(Path(args.data_dir) / 'test_split.txt')
+    if args.debug:
+        train, val, test = train[:20], val[:10], test[:10]
+        args.epochs = 1
+        args.batch_size = 2
+    labels = sorted({tag for split in (train, val, test) for _, tags in split for tag in tags})
+    label2id = {label: i for i, label in enumerate(labels)}
+    id2label = {i: label for label, i in label2id.items()}
+    print('label2id:', label2id, flush=True)
+    (out / 'label2id.json').write_text(json.dumps(label2id, indent=2))
+    config = {
+        'encoder': MODEL_NAME, 'hidden_size': HIDDEN_SIZE, 'use_crf': True,
+        'max_len': MAX_LEN, 'stride': args.stride, 'label_all_tokens': True,
+        'window_merge': 'most_central_first_subword', 'crf_reduction': 'token_mean',
+        'label2id': label2id, 'random_seed': None,
+        'selection_metric': 'validation_reconstructed_seqeval_f1',
+    }
+    (out / 'ner_config.json').write_text(json.dumps(config, indent=2))
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+    train_ds = NERDataset(train, tokenizer, label2id, args.stride)
+    val_ds = NERDataset(val, tokenizer, label2id, args.stride)
+    test_ds = NERDataset(test, tokenizer, label2id, args.stride)
+    for name, ds in [('train', train_ds), ('val', val_ds), ('test', test_ds)]:
+        print(f'{name}: {len(ds.pairs)} segments, {len(ds)} windows; '
+              f'{sum(n > 1 for n in ds.window_counts)} segments split into multiple windows',
+              flush=True)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('Device:', device, flush=True)
+    model = MyTaskSpecificCustomModel(MODEL_NAME, len(labels), HIDDEN_SIZE, True).to(device)
+    head_params = list(model.hidden_layer.parameters()) + list(model.output_layer.parameters()) + \
+                  list(model.crf.parameters())
+    optimizer = AdamW([
+        {'params': model.bert.parameters(), 'lr': 5e-5},
+        {'params': head_params, 'lr': 5e-3},
+    ])
+    scheduler = get_scheduler('linear', optimizer=optimizer, num_warmup_steps=0,
+                              num_training_steps=args.epochs * len(train_loader))
+    best = -1.0
+    for epoch in range(args.epochs):
+        model.train()
+        total = 0.0
+        for batch in train_loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            loss, _ = model(**batch)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            total += loss.item()
+        metrics = evaluate(model, val_ds, args.batch_size, id2label, device)
+        print(f'Epoch {epoch + 1}/{args.epochs}: loss={total / len(train_loader):.4f}; '
+              f'validation P={metrics["precision"]:.4f}, R={metrics["recall"]:.4f}, '
+              f'F1={metrics["f1"]:.4f}', flush=True)
+        if metrics['f1'] > best:
+            best = metrics['f1']
+            torch.save(model.state_dict(), out / 'best_model.pth')
+            (out / 'best_metrics.json').write_text(
+                json.dumps({'epoch': epoch + 1, **metrics}, indent=2))
+            print('Saved new best checkpoint', flush=True)
+    torch.save(model.state_dict(), out / 'final_model.pth')
+    model.load_state_dict(torch.load(out / 'best_model.pth', map_location=device,
+                                     weights_only=True))
+    test_metrics = evaluate(model, test_ds, args.batch_size, id2label, device)
+    (out / 'test_metrics.json').write_text(json.dumps(test_metrics, indent=2))
+    test_predictions = predict_segments(model, test_ds, args.batch_size, id2label, device)
+    (out / 'test_predictions.json').write_text(json.dumps(test_predictions))
+    print('Training complete. Best validation F1:', best, flush=True)
+    print('Held-out test metrics (best validation checkpoint):', test_metrics, flush=True)
+
+
+if __name__ == '__main__':
+    main()

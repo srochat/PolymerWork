@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Standalone POLYIE dependency-based RE demonstration.
+"""POLYIE dependency-based RE.
 
 Reproduces the held-out dependency heuristic in `dependency parse.ipynb`
 (cell `predict_dependency_cn_strategy`, strategy='combined', penalty=2,
 pn_pv_max=3, cn_max=20). Uses gold BIO tags and, optionally, saved NER
-predictions on identical test segments. No PURE-SUM imports or Jupyter needed.
+predictions on identical test segments.
 
 Install: python -m pip install 'spacy>=3.7,<4'
          python -m spacy download en_core_web_sm
 Run:     python demo_dependency_re.py --test test_split.txt \
              --predictions test_predictions.json --output-dir dependency_results
 
-The original dependency heuristic predicts CN-PN-PV triples, not Conditions.
 """
 import argparse
 import csv
@@ -24,7 +23,6 @@ VALID_SIGNATURES = {('CN', 'PN', 'PV'), ('CN', 'PN', 'PV', 'Condition')}
 
 
 def spans_from_bio(tags):
-    """Follow the BIO span reconstruction in train_pure_sum_original_materialsbert.py."""
     spans, start, typ = [], None, None
     for i, tag in enumerate(list(tags) + ['O']):
         if tag == 'O':

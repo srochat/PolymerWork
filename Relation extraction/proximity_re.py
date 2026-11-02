@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Standalone V3 proximity RE demonstration (standard library only).
+"""Standalone V3 proximity RE demonstration.
 
 Uses the original V3 proximity algorithm, with gold and/or predicted BIO NER
-labels from the held-out POLYIE split. No NER training, no Jupyter dependencies.
+labels from the held-out POLYIE split.
 
 Example:
-  python demo_v3_proximity_re.py --test test_split.txt \
+  python proximity_re.py --test test_split.txt \
       --predictions checkpoints_windowed_full/test_predictions.json \
       --output-dir v3_demo_results
 
 Gold-only:
-  python demo_v3_proximity_re.py --test test_split.txt --output-dir v3_demo_results
+  python proximity_re.py --test test_split.txt --output-dir v3_demo_results
 
 Gold relation annotations must contain ordered CN, PN, PV spans and optionally
 Condition spans, represented as [start, end] word offsets (end exclusive).

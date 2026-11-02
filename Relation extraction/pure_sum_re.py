@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone inference/evaluation for ORIGINAL (non-role-aware) PURE-SUM.
+"""Standalone inference/evaluation for ORIGINAL PURE-SUM.
 
 Based on train_pure_sum_original_materialsbert.py. Requires its trained RE
 checkpoint; this is a learned classifier, not a training-free heuristic.

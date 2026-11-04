@@ -409,7 +409,14 @@ def main():
         if not os.getenv("OPENAI_API_KEY"):
             raise RuntimeError("OPENAI_API_KEY is not configured.")
 
-        client = OpenAI()
+        import httpx
+
+        client = OpenAI(
+            http_client=httpx.Client(
+                headers={"Accept-Encoding": "identity"},
+                timeout=180.0,
+            )
+        )
         response = client.responses.create(
             model=args.model,
             instructions=RE_SYSTEM_PROMPT,
@@ -444,6 +451,13 @@ def main():
             result["predicted_relations"],
         )
 
+        print("\nPredicted relations (CN | PN | PV | Condition):")
+        inventory, _ = make_entity_inventory(tokens, entities)
+        lookup = {item["id"]: item["text"] for item in inventory}
+        for relation in parsed["relations"]:
+            print(" | ".join(lookup[entity_id] for entity_id in relation))
+
+        print("\nExact-match evaluation:")
         print(json.dumps(result["metrics"], indent=2))
 
     destination.write_text(

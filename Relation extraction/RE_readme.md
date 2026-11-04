@@ -36,7 +36,7 @@ Never commit an API key to GitHub.
 
 ## Run the demo
 
-**1. Dry run (no API request or charge):**
+**1. Test run (no API request or charge):**
 
 ```bash
 python demo_GPT_RE_GitHub.py
@@ -58,10 +58,10 @@ Replace `YOUR_AVAILABLE_MODEL` with a model available to your OpenAI API account
 python demo_GPT_RE_GitHub.py --execute --model YOUR_AVAILABLE_MODEL --document 0 --segment 1
 ```
 
-By default, the demo uses **gold-standard entities**. To use predicted NER labels instead, supply a compatible `test_predictions.json` file and run with `--ner-source predicted --predictions test_predictions.json`.
+By default, the demo uses **gold-standard entities**. To use predicted NER labels instead, use the compatible `test_predictions.json` file and run with `--ner-source predicted --predictions test_predictions.json`.
 
 ## Output
 
-Results are written as JSON to `gpt_re_results/`, for example `gpt_re_gold_doc0_seg0.json`. Live runs print predicted chemical–property–value relationships and exact-match **precision, recall and F1**, comparing the predictions against gold relations for the selected segment. A dry run saves the prompt but does not produce predictions.
+Results are written as JSON to `gpt_re_results/`, for example `gpt_re_gold_doc0_seg0.json`. Live runs print predicted chemical–property–value relationships and exact-match **precision, recall and F1**, comparing the predictions against gold relations for the selected segment. A test run saves the prompt but does not produce predictions.
 
 **Note:** A single-segment result is a demonstration, not a full-test-set performance estimate. The original three-shot demonstrations use training document/segment indices `(0, 2)`, `(1, 4)`, and `(50, 6)`.

@@ -1,3 +1,86 @@
+# POLYIE Relation Extraction — Demo Instructions
+
+This README provides brief instructions for running four relation extraction (RE) demonstrations: **distance-based proximity (V3)**, **dependency parsing**, **PURE-SUM**, and **GPT**. The examples assume the corresponding Python demo scripts have been added to this repository.
+
+> **Note:** The script names, command-line flags and dependency lists below are illustrative and have not been verified against the actual demo files. Check each script's  requirements before running.
+
+## Prerequisites
+
+Install Python 3.9+ and download or clone this repository. From a terminal in the repository directory, optionally create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# macOS/Linux:
+# source .venv/bin/activate
+```
+
+The demonstrations assume these data files are available:
+
+| File | Purpose |
+| --- | --- |
+| `test_split.txt` | POLYIE held-out test dataset |
+| `test_predictions.json` | Predicted BIO entity labels from the NER model |
+| `best_model.pth` | Trained PURE-SUM checkpoint (PURE-SUM only) |
+
+## 1. Distance-based proximity (V3)
+
+Uses token proximity and heuristic rules to associate chemical names, property names and property values.
+
+Install suggested dependencies:
+
+```bash
+pip install numpy pandas
+```
+
+Example command (on one line):
+
+```bash
+python demo_v3_proximity_re.py --test test_split.txt --predictions test_predictions.json --output-dir v3_demo_results
+```
+
+## 2. Dependency parsing
+
+Uses grammatical dependency relationships to help link chemical names to properties and values.
+
+Install suggested dependencies and the spaCy English model:
+
+```bash
+pip install "spacy>=3.7,<4" numpy pandas
+python -m spacy download en_core_web_sm
+```
+
+Example command:
+
+```bash
+python demo_dependency_re.py --test test_split.txt --predictions test_predictions.json --output-dir dependency_results
+```
+
+## 3. PURE-SUM
+
+Uses a supervised transformer-based RE model. A **compatible trained checkpoint** is required; installing dependencies alone is not sufficient.
+
+Install suggested dependencies:
+
+```bash
+pip install torch transformers tqdm numpy pandas
+```
+
+Example command:
+
+```bash
+python demo_pure_sum_original_re.py --test test_split.txt --predictions test_predictions.json --checkpoint path/to/run_1/best_model.pth --output-dir pure_sum_demo_results
+```
+
+Replace the checkpoint path with the location of your trained PURE-SUM weights.
+
+## Comparing outputs
+
+Use the **same held-out test split and NER predictions** across methods for a meaningful comparison. Inspect the output files produced by each implementation for extracted relationships and, where supported, precision, recall and F1. Exact output filenames and supported options depend on the scripts.
+
+These three methods do **not** require an OpenAI API key. The proximity and dependency approaches are rule-based; PURE-SUM performs inference with a previously trained model.
+
 # POLYIE: Three-shot GPT Relation Extraction Demo
 
 This Python demo extracts **chemical–property–value** relationships from polymer-science text using the POLYIE annotation scheme and three fixed examples from the training set. It accepts pre-annotated entities (gold BIO labels by default), asks an OpenAI model to predict relations, and compares predictions with the held-out gold relations.

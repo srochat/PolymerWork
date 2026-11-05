@@ -24,7 +24,7 @@ The demonstrations assume these data files are available:
 | `test_predictions.json` | Predicted BIO entity labels from the NER model |
 | `best_model.pth` | Trained PURE-SUM checkpoint (PURE-SUM only) |
 
-## 1. Distance-based proximity (V3)
+## 1. Distance-based proximity
 
 Uses token proximity and heuristic rules to associate chemical names, property names and property values.
 
